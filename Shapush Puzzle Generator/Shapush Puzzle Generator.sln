@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.30717.126
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Shapush Puzzle Generator", "Shapush Puzzle Generator.vcxproj", "{8EC83585-8AA5-4BA4-A65B-D2EDA8939845}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		Release|x64 = Release|x64
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{8EC83585-8AA5-4BA4-A65B-D2EDA8939845}.Debug|x64.ActiveCfg = Debug|x64
+		{8EC83585-8AA5-4BA4-A65B-D2EDA8939845}.Debug|x64.Build.0 = Debug|x64
+		{8EC83585-8AA5-4BA4-A65B-D2EDA8939845}.Release|x64.ActiveCfg = Release|x64
+		{8EC83585-8AA5-4BA4-A65B-D2EDA8939845}.Release|x64.Build.0 = Release|x64
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {0FA676E6-0610-4573-93EB-C463BF97F5C8}
+	EndGlobalSection
+EndGlobal
