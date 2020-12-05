@@ -16,7 +16,7 @@ int main()
 {
     const int arraySize = 5;
     const int a[arraySize] = { 1, 2, 3, 4, 5 };
-    const int b[arraySize] = { 10, 20, 30, 40, 50 };
+    const int b[arraySize] = { 10, 20, 30, 42, 50 };
     int c[arraySize] = { 0 };
 
     // Add vectors in parallel.
