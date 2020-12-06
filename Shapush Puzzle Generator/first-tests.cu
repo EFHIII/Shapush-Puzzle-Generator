@@ -1,121 +1,151 @@
+#include <iostream>
+#include <string.h>
 
-#include "cuda_runtime.h"
-#include "device_launch_parameters.h"
+#define MAX_BLOCKS 6
+#define WIDTH 5
 
-#include <stdio.h>
+int map[] = {
+  0,0,1,0,0,
+  0,1,0,1,0,
+  1,0,0,0,1,
+  1,1,1,1,1,
+  1,0,0,0,1,
+};
 
-cudaError_t addWithCuda(int *c, const int *a, const int *b, unsigned int size);
+struct board{
+  unsigned int playerX;
+  unsigned int playerY;
+  unsigned int depth;
+  unsigned int* board;
+};
 
-__global__ void addKernel(int *c, const int *a, const int *b)
-{
-    int i = threadIdx.x;
-    c[i] = a[i] + b[i];
+void perm(int *m){
+  int l = WIDTH*WIDTH;
+  int onv = 2;
+  for(int i = 0; i < l; i++){
+    if(m[i] == 1){
+      m[i] = onv;
+      if(i % WIDTH > 0 && m[i-1] == 1){m[i-1] = onv;}
+      if(i % WIDTH < WIDTH-1 && m[i+1] == 1){m[i+1] = onv;}
+      onv++;
+      i = max(i-WIDTH*2,0);
+    }
+    else if(m[i]>1){
+      if(i%WIDTH > 0 && m[i-1] == 1){
+        m[i-1] = m[i];
+      }
+      if(i%WIDTH <WIDTH-1 && m[i+1] == 1){
+        m[i+1] = m[i];
+      }
+      if(i/WIDTH>>0 < WIDTH && m[i+WIDTH] > 1 && m[i+WIDTH] != m[i]){
+        int tv = m[i+WIDTH];
+        for(int j = 0; j < l; j++){
+          if(m[j] == tv){m[j] = m[i];}
+        }
+      }
+    }
+  }
+
+  int totalNums = 1;
+  for(int i = 0; i < l; i++){
+    if(m[i] > totalNums){
+      int v = m[i];
+      for(int j = i; j < l; j++){
+        if(m[j] == v){
+          m[j] = totalNums;
+        }
+      }
+      totalNums++;
+    }
+  }
+
+  std::cout << "    regions: " << totalNums << std::endl;
 }
 
-int main()
-{
-    const int arraySize = 5;
-    const int a[arraySize] = { 1, 2, 3, 4, 5 };
-    const int b[arraySize] = { 10, 20, 30, 42, 50 };
-    int c[arraySize] = { 0 };
+struct board* getSearchSpace(){
 
-    // Add vectors in parallel.
-    cudaError_t cudaStatus = addWithCuda(c, a, b, arraySize);
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "addWithCuda failed!");
-        return 1;
+  perm(map);
+
+  int spots = 0;
+  int mapSize = sizeof(map)/sizeof(map[0]);
+  for(int i = 0; i < mapSize ; i++){if(map[i]){spots++;}}
+
+  long int puzzles = mapSize*spots;//player*flag *blockCols*blockPorts
+
+  //print basic info
+  std::cout << "      spots: " << spots << std::endl;
+  std::cout << "   map size: " << mapSize << std::endl;
+  std::cout << " max blocks: " << MAX_BLOCKS << std::endl;
+  std::cout << "    puzzles: " << puzzles << std::endl << std::endl;
+
+  //print board
+  for(int i = 0; i < WIDTH; i++){
+    for(int j = 0; j < WIDTH; j++){
+      if(map[i*WIDTH+j]){
+        std::cout << " " << map[i*WIDTH+j];
+      }
+      else{
+        std::cout << " .";
+      }
     }
+    std::cout << std::endl << std::endl;
+  }
 
-    printf("{1,2,3,4,5} + {10,20,30,42,50} = {%d,%d,%d,%d,%d}\n",
-        c[0], c[1], c[2], c[3], c[4]);
+  struct board* ans = (board*)malloc((9*9) * sizeof(struct board));
 
-    // cudaDeviceReset must be called before exiting in order for profiling and
-    // tracing tools such as Nsight and Visual Profiler to show complete traces.
-    cudaStatus = cudaDeviceReset();
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaDeviceReset failed!");
-        return 1;
+  int at = 0;
+  for(int px = 0; px < 3 ; px++){
+    for(int py = 0; py < 3 ; py++){
+      for(int fx = 0; fx < 3 ; fx++){
+        for(int fy = 0; fy < 3 ; fy++){
+
+//          for(int bp = 0; bp < 9 ; bp++){
+//            for(int h = 0; h < 9 ; h++){
+//              for(int p = 0; p < 9 ; p++){
+
+                if(px==fx && py == fy){
+                  continue;
+                }//player starts at the flag
+
+                unsigned int theBoard[] = {
+                  0,0, 0,0, 0,0,
+                  0,0, 0,0, 0,0,
+                  0,0, 0,0, 0,0
+                };
+
+                ans[at].playerX = px;
+                ans[at].playerY = py;
+                ans[at].depth = 0;
+                ans[at++].board = theBoard;
+//              }
+//            }
+//          }
+        }
+      }
     }
-
-    return 0;
+  }
+  return ans;
 }
 
-// Helper function for using CUDA to add vectors in parallel.
-cudaError_t addWithCuda(int *c, const int *a, const int *b, unsigned int size)
-{
-    int *dev_a = 0;
-    int *dev_b = 0;
-    int *dev_c = 0;
-    cudaError_t cudaStatus;
+__global__ void searchSpace(){
+  int id = threadIdx.x;
+}
 
-    // Choose which GPU to run on, change this on a multi-GPU system.
-    cudaStatus = cudaSetDevice(0);
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaSetDevice failed!  Do you have a CUDA-capable GPU installed?");
-        goto Error;
-    }
+__global__ void solveBoard(){
 
-    // Allocate GPU buffers for three vectors (two input, one output)    .
-    cudaStatus = cudaMalloc((void**)&dev_c, size * sizeof(int));
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMalloc failed!");
-        goto Error;
-    }
+}
 
-    cudaStatus = cudaMalloc((void**)&dev_a, size * sizeof(int));
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMalloc failed!");
-        goto Error;
-    }
+int main(void){
 
-    cudaStatus = cudaMalloc((void**)&dev_b, size * sizeof(int));
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMalloc failed!");
-        goto Error;
-    }
+  struct board* searchSpace = getSearchSpace();
 
-    // Copy input vectors from host memory to GPU buffers.
-    cudaStatus = cudaMemcpy(dev_a, a, size * sizeof(int), cudaMemcpyHostToDevice);
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMemcpy failed!");
-        goto Error;
-    }
+  //std::cout << searchSpace[0].playerX << "," << searchSpace[0].playerY << std::endl;
 
-    cudaStatus = cudaMemcpy(dev_b, b, size * sizeof(int), cudaMemcpyHostToDevice);
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMemcpy failed!");
-        goto Error;
-    }
+  //std::cout << searchSpace[30].playerX << "," << searchSpace[30].playerY << std::endl;
 
-    // Launch a kernel on the GPU with one thread for each element.
-    addKernel<<<1, size>>>(dev_c, dev_a, dev_b);
 
-    // Check for any errors launching the kernel
-    cudaStatus = cudaGetLastError();
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
-        goto Error;
-    }
+  //std::cout << (sizeof(&searchSpace)) << std::endl;
+  //std::cout << (sizeof(&searchSpace)/sizeof(searchSpace[0])) << std::endl;
 
-    // cudaDeviceSynchronize waits for the kernel to finish, and returns
-    // any errors encountered during the launch.
-    cudaStatus = cudaDeviceSynchronize();
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching addKernel!\n", cudaStatus);
-        goto Error;
-    }
-
-    // Copy output vector from GPU buffer to host memory.
-    cudaStatus = cudaMemcpy(c, dev_c, size * sizeof(int), cudaMemcpyDeviceToHost);
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMemcpy failed!");
-        goto Error;
-    }
-
-Error:
-    cudaFree(dev_c);
-    cudaFree(dev_a);
-    cudaFree(dev_b);
-
-    return cudaStatus;
+  return 0;
 }
