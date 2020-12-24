@@ -3,6 +3,7 @@
 #include <array>
 #include <string>
 #include <algorithm>
+#include <iterator>
 #include <unordered_set>
 
 #define MAX_BLOCKS 5
@@ -34,7 +35,7 @@ int factorial(int a){
 
 std::vector<int *> getSearchSpace(){
 
-  int mapSize = sizeof(map)/sizeof(map[0]);
+  int mapSize = WIDTH * HEIGHT;
 
   int mx = 0;//max block number
   for(int i = 0; i < mapSize; i++){
@@ -95,7 +96,7 @@ std::vector<int *> getSearchSpace(){
     bool done = false;
 
     while(!done){
-      int *t = new int[mapSize * 2];
+      int *t = new int[BOARD_SIZE];
       int atT = 0;
       int v;
       for(int j = 0; j < mapSize; j++) {
@@ -125,7 +126,7 @@ std::vector<int *> getSearchSpace(){
     }
   }
 
-  std::cout << "puzzles:" << ans.size() << std::endl << std::endl;
+  std::cout << "puzzles:" << (int)ans.size() << std::endl << std::endl;
   delete[] blockAts;
   delete[] blockPos;
   delete[] perm;
@@ -135,8 +136,8 @@ std::vector<int *> getSearchSpace(){
 
 void printBoard(int *b){
   std::cout << "[" << std::endl;
-  for(int j = 0; j < WIDTH; j++) {
-    for(int i = 0; i < HEIGHT; i++) {
+  for(int i = 0; i < HEIGHT; i++) {
+    for(int j = 0; j < WIDTH; j++) {
       if(i > 0){
         std::cout << ",";
       }
@@ -195,19 +196,7 @@ void prettyPrintBoard(int *b){
   }
 }
 
-std::string stringify(int *a){
-  std::string str;
-  for (int i = 0; i < DATA_SIZE; i++) {
-    str += std::to_string(a[i] + 2);
-    //str += ",";
-  }
-  return str;
-}
-
 bool winning(int *board){
-  //if(true){
-  //  return true;
-  //}
   if(board[(board[BOARD_SIZE] + board[BOARD_SIZE + 1] * WIDTH) * 2 + 1] == -2){
     return true;
   }
@@ -269,13 +258,9 @@ __global__ void makeMoves(int *queue, int *newQueue, int max){
   const int dir = (idx) % 4;
   const bool grabbing = ((idx) / 4) % 2 == 1;
 
-  //printf("%d: from %d\n", idx, from);
-  //printf("%d - %d %d\n", (idx) % 8, dir, grabbing?1:0);
-
   int X = queue[from + BOARD_SIZE];
   int Y = queue[from + BOARD_SIZE + 1];
   int facing = queue[from + BOARD_SIZE + 2];
-  //printf("%d: from %d  %d,%d %d\n", idx, from, X, Y, facing);
   int board[BOARD_SIZE];
 
   for(int i = 0; i < BOARD_SIZE; i++){
@@ -320,18 +305,16 @@ __global__ void makeMoves(int *queue, int *newQueue, int max){
         finish(newQueue, board, X, Y, grabbing, facing, dir, to);
         return;
       }
-      //if(X + fc0 >= 0 && X + fc0 < WIDTH && Y + fc1 >= 0 && Y + fc1 < HEIGHT){
-        if(fcn0 > 0 && fcn0 != curs0 && moveBlock(board,fcn0,x,y) ){
-          X += x;
-          Y += y;
-          finish(newQueue, board, X, Y, grabbing, facing, dir, to);
-          return;
-        }
-        if(fcn0 != 0 && fcn0 != curs0){
-          finish(newQueue, board, X, Y, grabbing, facing, dir, to);
-          return;
-        }
-      //}
+      if(fcn0 > 0 && fcn0 != curs0 && moveBlock(board,fcn0,x,y) ){
+        X += x;
+        Y += y;
+        finish(newQueue, board, X, Y, grabbing, facing, dir, to);
+        return;
+      }
+      if(fcn0 != 0 && fcn0 != curs0){
+        finish(newQueue, board, X, Y, grabbing, facing, dir, to);
+        return;
+      }
     }
     else if(grabbing && nexs0 > 0 && nexs1 == curs0){
       if(fcn0 > 0 && (x != fc0 || y != fc1) && fcn0 != curs0 && moveBlock(board,fcn0,x,y) ){
@@ -399,15 +382,38 @@ __global__ void makeMoves(int *queue, int *newQueue, int max){
   return;
 }
 
+struct ArrayHasher {
+  std::size_t operator()(const int * a) const {
+    std::size_t h = 0;
+
+    for(int i = 0; i < DATA_SIZE; i++){
+      h ^= std::hash<int>{}(a[i])  + 0x9e3779b9 + (h << 6) + (h >> 2);
+    }
+    return h;
+  }
+};
+
+struct ArrayEq {
+  bool operator () ( const int * a, const int * b ) const {
+    for(int i = 0; i < DATA_SIZE; i++){
+      if(a[i] != b[i]){return false;}
+    }
+    return true;
+  }
+};
+
 int main(){
   SetConsoleTextAttribute(hConsole, 15);
   std::vector<int *> searchSpace = getSearchSpace();
-  const int SZ = searchSpace.size();
+  const int SZ = (int)searchSpace.size();
   int best = 0;
   int bestIndex = 0;
 
   for(int puz = 0; puz < SZ; puz++){
-    std::unordered_set<std::string> allBoards;
+    std::vector<int *> allBoardsVec;
+    std::unordered_set< int *, ArrayHasher, ArrayEq > allBoards;
+
+    allBoards.rehash(1048576);
 
     int newBoard[DATA_SIZE];
     newBoard[BOARD_SIZE + 0] = PLAYER_X;
@@ -416,18 +422,17 @@ int main(){
     for(int i = 0; i < BOARD_SIZE; i++){
       newBoard[i] = searchSpace[puz][i];
     }
-    //std::cout << "puzzle " <<  puz << "/" << SZ << "    " << puz * 100 / SZ << "%" << std::endl << stringify(newBoard) << std::endl;
     std::cout << "puzzle " <<  puz << "/" << SZ << "    " << puz * 100 / SZ << "%" << std::endl;
-    allBoards.insert(stringify(newBoard));
+    allBoards.insert(newBoard);
 
     std::vector<int *> queue = {newBoard};
 
     bool done = false;
     int moves = 0;
-    while(!done && queue.size() > 0){
+    while(!done && (int)queue.size() > 0){
       moves++;
       std::vector<int> h_queue;
-      for(int i = 0; i < queue.size(); i++){
+      for(int i = 0; i < (int)queue.size(); i++){
         //std::cout << "queue " << i << std::endl;
         //prettyPrintBoard(queue[i]);
         //std::cout << std::endl << std::endl;
@@ -439,41 +444,46 @@ int main(){
       int *d_queue;
       int *d_newQueue;
 
-      cudaMalloc(&d_queue, h_queue.size() * sizeof(int));
-      cudaMalloc(&d_newQueue, h_queue.size() * sizeof(int) * 8);
+      cudaMalloc(&d_queue, (int)h_queue.size() * sizeof(int));
+      cudaMalloc(&d_newQueue, (int)h_queue.size() * sizeof(int) * 8);
 
-      cudaMemcpy( d_queue, h_queue.data(), h_queue.size() * sizeof(int), cudaMemcpyHostToDevice);
+      cudaMemcpy( d_queue, h_queue.data(), (int)h_queue.size() * sizeof(int), cudaMemcpyHostToDevice);
 
-      int blocks = queue.size() / 128 + 1;
+      int blocks = (int)queue.size() / 128 + 1;
       //std::cout << "blocks: " << blocks << std::endl;
 
-      int h_max = queue.size() * 8;
+      int h_max = (int)queue.size() * 8;
 
       queue.clear();
 
-      std::cout << "move " << moves << " threads: " << h_max << std::endl;
+      std::cout << "move " << moves << " threads: " << h_max;
 
       makeMoves<<< blocks, 1024 >>>(d_queue, d_newQueue, h_max);
       cudaDeviceSynchronize();
+      std::cout << "*";
 
-      int *h_newQueue = new int[h_queue.size() * 8];
+      int *h_newQueue = new int[(int)h_queue.size() * 8];
 
-      cudaMemcpy( h_newQueue, d_newQueue, h_queue.size() * 8 * sizeof(int), cudaMemcpyDeviceToHost);
+      cudaMemcpy( h_newQueue, d_newQueue, (int)h_queue.size() * 8 * sizeof(int), cudaMemcpyDeviceToHost);
 
-      //std::vector<int *> newQueue;
+      cudaFree(d_queue);
+      cudaFree(d_newQueue);
 
-      for(int i = 0; i < h_queue.size() * 8; i+= DATA_SIZE){
-        int *temp = new int[DATA_SIZE];
+      std::cout << "*";
+
+      int SS = (int)h_queue.size() * 8;
+      for(int i = 0; i < SS; i+= DATA_SIZE){
+        int temp[DATA_SIZE];
+
         for(int j = 0; j < DATA_SIZE; j++){
           temp[j] = h_newQueue[i + j];
         }
 
-        //std::cout << temp[BOARD_SIZE] << ", " << temp[BOARD_SIZE + 1] << ", " << temp[BOARD_SIZE + 2] << std::endl;
         //std::cout << moves << " - " << ((i) / ((DATA_SIZE) * (8))) << " - " <<  ((((i) / (DATA_SIZE)) % 8) + 1)  << std::endl;
         //prettyPrintBoard(temp);
         //std::cout << std::endl << std::endl;
 
-        if(allBoards.find(stringify(temp)) == allBoards.end()){
+        if(allBoards.count(temp) == 0){
           if(winning(temp)){
             std::cout << "Solved in " << moves << " moves; best = " << best << std::endl;
             if(moves >= best){
@@ -481,20 +491,39 @@ int main(){
               bestIndex = puz;
               prettyPrintBoard(temp);
               printBoard(searchSpace[puz]);
+              std::cout << std::endl;
             }
             done = true;
-            i = h_queue.size() * 8;
+            i = SS;
           }
-          queue.push_back(temp);
-          allBoards.insert(stringify(temp));
+
+          int *temp2 = new int[DATA_SIZE];
+          for(int i = 0; i < DATA_SIZE; i++){
+            temp2[i] = temp[i];
+          }
+
+          queue.push_back(temp2);
+          allBoardsVec.push_back(temp2);
+          allBoards.insert(temp2);
 
           //prettyPrintBoard(temp);
           //std::cout << std::endl << std::endl;
         }
       }
 
-    }
+      delete[] h_newQueue;
 
+      std::cout << "*" << std::endl;
+
+    }
+    allBoards.clear();
+    queue.clear();
+    queue.shrink_to_fit();
+    for (int i = (int)allBoardsVec.size()-1; i >= 0; i--){
+      delete[] allBoardsVec[i];
+    }
+    allBoardsVec.clear();
+    allBoardsVec.shrink_to_fit();
   }
 
   std::cout << "best took " << best << " moves" << std::endl;
