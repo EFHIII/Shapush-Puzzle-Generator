@@ -197,10 +197,7 @@ void prettyPrintBoard(int *b){
 }
 
 bool winning(int *board){
-  if(board[(board[BOARD_SIZE] + board[BOARD_SIZE + 1] * WIDTH) * 2 + 1] == -2){
-    return true;
-  }
-  return false;
+  return board[(board[BOARD_SIZE] + board[BOARD_SIZE + 1] * WIDTH) * 2 + 1] == -2;
 }
 
 __forceinline__ __device__ bool moveBlock(int *board, int block, int x, int y){
@@ -472,9 +469,8 @@ int main(){
       std::cout << "*";
 
       int SS = (int)h_queue.size() * 8;
+      int temp[DATA_SIZE];
       for(int i = 0; i < SS; i+= DATA_SIZE){
-        int temp[DATA_SIZE];
-
         for(int j = 0; j < DATA_SIZE; j++){
           temp[j] = h_newQueue[i + j];
         }
