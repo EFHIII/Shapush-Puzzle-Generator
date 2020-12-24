@@ -11,3 +11,12 @@
   - solved board state
 - host evaluates the result sent from the device to give each board a score
 - host reports back the top scoring boards to the user
+
+# idea 2
+- CPU works on each puzzle in sequence
+- CPU sends GPU work on a per-layer basis
+- GPU generates next 8 possible states
+- check states for if they already exist
+
+# TODO
+- fix minor bug in pathing (my guess is it's when the player is grabbing inside a block without moving a block)

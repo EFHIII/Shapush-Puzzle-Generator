@@ -138,7 +138,7 @@ void printBoard(int *b){
   std::cout << "[" << std::endl;
   for(int i = 0; i < HEIGHT; i++) {
     for(int j = 0; j < WIDTH; j++) {
-      if(i > 0){
+      if(j > 0){
         std::cout << ",";
       }
       else{
@@ -239,7 +239,9 @@ __forceinline__ __device__ void finish(int *newQueue, int *board, int X, int Y, 
 
   for(int i = 0; i < BOARD_SIZE; i++){
     newQueue[to + i] = board[i];
+    //printf("%d", board[i]);
   }
+  //printf(" %d,%d %d\n", X, Y, facing);
   newQueue[to + BOARD_SIZE    ] = X;
   newQueue[to + BOARD_SIZE + 1] = Y;
   newQueue[to + BOARD_SIZE + 2] = facing;
@@ -420,38 +422,20 @@ struct TrieNode *getNode(void) {
   return pNode;
 }
 
-void trieInsert(struct TrieNode *pCrawl, int *key) {
-  //struct TrieNode *pCrawl = root;
-
-  for (int i = 0; i < DATA_SIZE; i++) {
-    int index = key[i] + 2;
-    //for (int i = 0; i < ALPHABET_SIZE; i++)
-    //  std::cout << pCrawl->children[i] << ", ";
-
-    //std::cout << std::endl << "index: " << index << std::endl;
-    //std::cout << "value: " << pCrawl->children[index] << std::endl;
-    if (!pCrawl->children[index])
-      pCrawl->children[index] = getNode();
-
-    pCrawl = pCrawl->children[index];
-  }
-
-  // mark last node as leaf
-  pCrawl->isEndOfWord = true;
-}
-
 bool trieSearch(struct TrieNode *pCrawl, int *key) {
-  //struct TrieNode *pCrawl = root;
+  bool ret = true;
 
   for (int i = 0; i < DATA_SIZE; i++) {
     int index = key[i] + 2;
-    if (!pCrawl->children[index])
-      return false;
+    if (!pCrawl->children[index]){
+      pCrawl->children[index] = getNode();
+      ret = false;
+    }
 
     pCrawl = pCrawl->children[index];
   }
 
-  return (pCrawl != NULL && pCrawl->isEndOfWord);
+  return ret;
 }
 
 void trieDelete(struct TrieNode *root) {
@@ -462,7 +446,6 @@ void trieDelete(struct TrieNode *root) {
   }
 }
 
-
 int main(){
   SetConsoleTextAttribute(hConsole, 15);
   std::vector<int *> searchSpace = getSearchSpace();
@@ -471,11 +454,7 @@ int main(){
   int bestIndex = 0;
 
   for(int puz = 0; puz < SZ; puz++){
-    //std::vector<int *> allBoardsVec;
-    //std::unordered_set< int *, ArrayHasher, ArrayEq > allBoards;
     struct TrieNode *allBoards = getNode();
-
-    //allBoards.rehash(1048576);
 
     int *newBoard = new int[DATA_SIZE];
     newBoard[BOARD_SIZE + 0] = PLAYER_X;
@@ -485,8 +464,8 @@ int main(){
       newBoard[i] = searchSpace[puz][i];
     }
     std::cout << "puzzle " <<  puz << "/" << SZ << "    " << puz * 100 / SZ << "%" << std::endl;
-    //allBoards.insert(newBoard);
-    trieInsert(allBoards, newBoard);
+
+    trieSearch(allBoards, newBoard);
 
     std::vector<int *> queue = {newBoard};
 
@@ -494,14 +473,11 @@ int main(){
     int moves = 0;
     while(!done && (int)queue.size() > 0){
       moves++;
-      std::vector<int> h_queue;
+      std::vector<int> h_queue((int)queue.size() * (DATA_SIZE));
 
       for(int i = 0; i < (int)queue.size(); i++){
-        //std::cout << "queue " << i << std::endl;
-        //prettyPrintBoard(queue[i]);
-        //std::cout << std::endl << std::endl;
         for(int j = 0; j < DATA_SIZE; j++){
-          h_queue.push_back(queue[i][j]);
+          h_queue[i * (DATA_SIZE) + j] = queue[i][j];
         }
       }
 
@@ -523,11 +499,11 @@ int main(){
       }
       queue.clear();
 
-      std::cout << "move " << moves << " threads: " << h_max;
+      //std::cout << "move " << moves << " threads: " << h_max;
 
       makeMoves<<< blocks, 1024 >>>(d_queue, d_newQueue, h_max);
       cudaDeviceSynchronize();
-      std::cout << "*";
+      //std::cout << "*";
 
       int *h_newQueue = new int[(int)h_queue.size() * 8];
 
@@ -536,14 +512,12 @@ int main(){
       cudaFree(d_queue);
       cudaFree(d_newQueue);
 
-      std::cout << "*";
+      //std::cout << "*";
 
       int SS = (int)h_queue.size() * 8;
-      int temp[DATA_SIZE];
+      int *temp;
       for(int i = 0; i < SS; i+= DATA_SIZE){
-        for(int j = 0; j < DATA_SIZE; j++){
-          temp[j] = h_newQueue[i + j];
-        }
+        temp = &h_newQueue[i];
 
         //std::cout << moves << " - " << ((i) / ((DATA_SIZE) * (8))) << " - " <<  ((((i) / (DATA_SIZE)) % 8) + 1)  << std::endl;
         //prettyPrintBoard(temp);
@@ -563,8 +537,6 @@ int main(){
             i = SS;
           }
 
-          trieInsert(allBoards, temp);
-
           int *temp2 = new int[DATA_SIZE];
           for(int i = 0; i < DATA_SIZE; i++){
             temp2[i] = temp[i];
@@ -576,17 +548,12 @@ int main(){
 
       delete[] h_newQueue;
 
-      std::cout << "*" << std::endl;
+      //std::cout << "*" << std::endl;
 
     }
-    //allBoards.clear();
+
     queue.clear();
     queue.shrink_to_fit();
-    //for (int i = (int)allBoardsVec.size()-1; i >= 0; i--){
-    //  delete[] allBoardsVec[i];
-    //}
-    //allBoardsVec.clear();
-    //allBoardsVec.shrink_to_fit();
     trieDelete(allBoards);
     delete allBoards;
   }
