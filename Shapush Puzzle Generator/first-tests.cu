@@ -379,6 +379,7 @@ __global__ void makeMoves(int *queue, int *newQueue, int max){
   return;
 }
 
+//unordered_set stuff
 struct ArrayHasher {
   std::size_t operator()(const int * a) const {
     std::size_t h = 0;
@@ -399,6 +400,69 @@ struct ArrayEq {
   }
 };
 
+//trie stuff
+#define ALPHABET_SIZE MAX_BLOCKS + 3
+
+struct TrieNode {
+  struct TrieNode *children[ALPHABET_SIZE];
+
+  bool isEndOfWord;
+};
+
+struct TrieNode *getNode(void) {
+  struct TrieNode *pNode =  new TrieNode;
+
+  pNode->isEndOfWord = false;
+
+  for (int i = 0; i < ALPHABET_SIZE; i++)
+    pNode->children[i] = NULL;
+
+  return pNode;
+}
+
+void trieInsert(struct TrieNode *pCrawl, int *key) {
+  //struct TrieNode *pCrawl = root;
+
+  for (int i = 0; i < DATA_SIZE; i++) {
+    int index = key[i] + 2;
+    //for (int i = 0; i < ALPHABET_SIZE; i++)
+    //  std::cout << pCrawl->children[i] << ", ";
+
+    //std::cout << std::endl << "index: " << index << std::endl;
+    //std::cout << "value: " << pCrawl->children[index] << std::endl;
+    if (!pCrawl->children[index])
+      pCrawl->children[index] = getNode();
+
+    pCrawl = pCrawl->children[index];
+  }
+
+  // mark last node as leaf
+  pCrawl->isEndOfWord = true;
+}
+
+bool trieSearch(struct TrieNode *pCrawl, int *key) {
+  //struct TrieNode *pCrawl = root;
+
+  for (int i = 0; i < DATA_SIZE; i++) {
+    int index = key[i] + 2;
+    if (!pCrawl->children[index])
+      return false;
+
+    pCrawl = pCrawl->children[index];
+  }
+
+  return (pCrawl != NULL && pCrawl->isEndOfWord);
+}
+
+void trieDelete(struct TrieNode *root) {
+  for (int i = 0; i < ALPHABET_SIZE; i++) {
+    if(root->children[i])
+      trieDelete(root->children[i]);
+    delete root->children[i];
+  }
+}
+
+
 int main(){
   SetConsoleTextAttribute(hConsole, 15);
   std::vector<int *> searchSpace = getSearchSpace();
@@ -407,12 +471,13 @@ int main(){
   int bestIndex = 0;
 
   for(int puz = 0; puz < SZ; puz++){
-    std::vector<int *> allBoardsVec;
-    std::unordered_set< int *, ArrayHasher, ArrayEq > allBoards;
+    //std::vector<int *> allBoardsVec;
+    //std::unordered_set< int *, ArrayHasher, ArrayEq > allBoards;
+    struct TrieNode *allBoards = getNode();
 
-    allBoards.rehash(1048576);
+    //allBoards.rehash(1048576);
 
-    int newBoard[DATA_SIZE];
+    int *newBoard = new int[DATA_SIZE];
     newBoard[BOARD_SIZE + 0] = PLAYER_X;
     newBoard[BOARD_SIZE + 1] = PLAYER_Y;
     newBoard[BOARD_SIZE + 2] = 0;
@@ -420,7 +485,8 @@ int main(){
       newBoard[i] = searchSpace[puz][i];
     }
     std::cout << "puzzle " <<  puz << "/" << SZ << "    " << puz * 100 / SZ << "%" << std::endl;
-    allBoards.insert(newBoard);
+    //allBoards.insert(newBoard);
+    trieInsert(allBoards, newBoard);
 
     std::vector<int *> queue = {newBoard};
 
@@ -429,6 +495,7 @@ int main(){
     while(!done && (int)queue.size() > 0){
       moves++;
       std::vector<int> h_queue;
+
       for(int i = 0; i < (int)queue.size(); i++){
         //std::cout << "queue " << i << std::endl;
         //prettyPrintBoard(queue[i]);
@@ -451,6 +518,9 @@ int main(){
 
       int h_max = (int)queue.size() * 8;
 
+      for (int i = (int)queue.size() - 1; i >= 0; i--){
+        delete[] queue[i];
+      }
       queue.clear();
 
       std::cout << "move " << moves << " threads: " << h_max;
@@ -477,9 +547,9 @@ int main(){
 
         //std::cout << moves << " - " << ((i) / ((DATA_SIZE) * (8))) << " - " <<  ((((i) / (DATA_SIZE)) % 8) + 1)  << std::endl;
         //prettyPrintBoard(temp);
-        //std::cout << std::endl << std::endl;
+        //std::cout << std::endl;
 
-        if(allBoards.count(temp) == 0){
+        if(!trieSearch(allBoards, temp)){
           if(winning(temp)){
             std::cout << "Solved in " << moves << " moves; best = " << best << std::endl;
             if(moves >= best){
@@ -493,17 +563,14 @@ int main(){
             i = SS;
           }
 
+          trieInsert(allBoards, temp);
+
           int *temp2 = new int[DATA_SIZE];
           for(int i = 0; i < DATA_SIZE; i++){
             temp2[i] = temp[i];
           }
 
           queue.push_back(temp2);
-          allBoardsVec.push_back(temp2);
-          allBoards.insert(temp2);
-
-          //prettyPrintBoard(temp);
-          //std::cout << std::endl << std::endl;
         }
       }
 
@@ -512,14 +579,16 @@ int main(){
       std::cout << "*" << std::endl;
 
     }
-    allBoards.clear();
+    //allBoards.clear();
     queue.clear();
     queue.shrink_to_fit();
-    for (int i = (int)allBoardsVec.size()-1; i >= 0; i--){
-      delete[] allBoardsVec[i];
-    }
-    allBoardsVec.clear();
-    allBoardsVec.shrink_to_fit();
+    //for (int i = (int)allBoardsVec.size()-1; i >= 0; i--){
+    //  delete[] allBoardsVec[i];
+    //}
+    //allBoardsVec.clear();
+    //allBoardsVec.shrink_to_fit();
+    trieDelete(allBoards);
+    delete allBoards;
   }
 
   std::cout << "best took " << best << " moves" << std::endl;
