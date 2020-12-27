@@ -5,6 +5,13 @@
 #include <algorithm>
 #include <iterator>
 #include <unordered_set>
+#include <thread>
+
+#include <mutex>
+
+std::mutex mu;
+
+#define THREAD_COUNT 12
 
 #define MAX_BLOCKS 5
 #define MAX_BLOCK_SIZE 4
@@ -239,9 +246,7 @@ __forceinline__ __device__ void finish(int *newQueue, int *board, int X, int Y, 
 
   for(int i = 0; i < BOARD_SIZE; i++){
     newQueue[to + i] = board[i];
-    //printf("%d", board[i]);
   }
-  //printf(" %d,%d %d\n", X, Y, facing);
   newQueue[to + BOARD_SIZE    ] = X;
   newQueue[to + BOARD_SIZE + 1] = Y;
   newQueue[to + BOARD_SIZE + 2] = facing;
@@ -446,14 +451,8 @@ void trieDelete(struct TrieNode *root) {
   }
 }
 
-int main(){
-  SetConsoleTextAttribute(hConsole, 15);
-  std::vector<int *> searchSpace = getSearchSpace();
-  const int SZ = (int)searchSpace.size();
-  int best = 0;
-  int bestIndex = 0;
-
-  for(int puz = 0; puz < SZ; puz++){
+void runPuzzles(int id, std::vector<int *> searchSpace, int SZ, int &best, int &bestIndex){
+  for(int puz = id; puz < SZ; puz+=THREAD_COUNT){
     struct TrieNode *allBoards = getNode();
 
     int *newBoard = new int[DATA_SIZE];
@@ -463,7 +462,11 @@ int main(){
     for(int i = 0; i < BOARD_SIZE; i++){
       newBoard[i] = searchSpace[puz][i];
     }
-    std::cout << "puzzle " <<  puz << "/" << SZ << "    " << puz * 100 / SZ << "%" << std::endl;
+
+
+    mu.lock();
+    std::cout << "puzzle " <<  puz << "/" << SZ << "    " << puz * 100 / SZ << "% thread " << id << std::endl;
+    mu.unlock();
 
     trieSearch(allBoards, newBoard);
 
@@ -489,7 +492,7 @@ int main(){
 
       cudaMemcpy( d_queue, h_queue.data(), (int)h_queue.size() * sizeof(int), cudaMemcpyHostToDevice);
 
-      int blocks = (int)queue.size() / 128 + 1;
+      int blocks = (int)queue.size() / 64 + 1;
       //std::cout << "blocks: " << blocks << std::endl;
 
       int h_max = (int)queue.size() * 8;
@@ -501,8 +504,17 @@ int main(){
 
       //std::cout << "move " << moves << " threads: " << h_max;
 
-      makeMoves<<< blocks, 1024 >>>(d_queue, d_newQueue, h_max);
+      makeMoves<<< blocks, 512 >>>(d_queue, d_newQueue, h_max);
       cudaDeviceSynchronize();
+
+      // check for error
+      cudaError_t error = cudaGetLastError();
+      if(error != cudaSuccess){
+        // print the CUDA error message and exit
+        printf("CUDA error: %s\n", cudaGetErrorString(error));
+        exit(-1);
+      }
+
       //std::cout << "*";
 
       int *h_newQueue = new int[(int)h_queue.size() * 8];
@@ -525,7 +537,8 @@ int main(){
 
         if(!trieSearch(allBoards, temp)){
           if(winning(temp)){
-            std::cout << "Solved in " << moves << " moves; best = " << best << std::endl;
+            mu.lock();
+            std::cout << "Solved " << puz << " in " << moves << " moves; best = " << best << " thread " << id << std::endl;
             if(moves >= best){
               best = moves;
               bestIndex = puz;
@@ -533,6 +546,7 @@ int main(){
               printBoard(searchSpace[puz]);
               std::cout << std::endl;
             }
+            mu.unlock();
             done = true;
             i = SS;
           }
@@ -556,6 +570,28 @@ int main(){
     queue.shrink_to_fit();
     trieDelete(allBoards);
     delete allBoards;
+  }
+}
+
+int main(){
+  SetConsoleTextAttribute(hConsole, 15);
+  std::vector<int *> searchSpace = getSearchSpace();
+  const int SZ = (int)searchSpace.size();
+  int best = 0;
+  int bestIndex = 0;
+
+  // multi-thread
+  std::vector<std::thread> threads;
+
+  int id = 0;
+
+  for(int i = 0; i < THREAD_COUNT; i++){
+      threads.emplace_back([&](){runPuzzles(id++, searchSpace, SZ, best, bestIndex);});
+
+  }
+
+  for( auto & t : threads ){
+    t.join();
   }
 
   std::cout << "best took " << best << " moves" << std::endl;
