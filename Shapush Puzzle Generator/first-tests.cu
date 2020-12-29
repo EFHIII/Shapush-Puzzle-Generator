@@ -21,8 +21,6 @@ int map[] = {
 
 #define THREAD_COUNT 0// 0 to detect hardware_concurrency (default: 8)
 
-int threadCount;
-
 #include <iostream>
 #include <vector>
 #include <array>
@@ -577,7 +575,7 @@ void runPuzzles(int id, int threadCount, std::vector<int *> searchSpace, int SZ,
 
 // main function
 int main(){
-  threadCount = THREAD_COUNT;
+  int threadCount = THREAD_COUNT;
   if(threadCount == 0){
     threadCount = std::thread::hardware_concurrency();
     if(threadCount == 0){
