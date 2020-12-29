@@ -1,3 +1,28 @@
+#define PLAYER_X 2
+#define PLAYER_Y 2
+
+// 0 = nothing, # = parts of a block and it's initial position
+
+int map[] = {
+  1, 1, 5, 5, 0,
+  1, 0, 0, 0, 0,
+  1, 0, 0, 4, 4,
+  2, 0, 0, 0, 4,
+  2, 2, 3, 3, 0,
+};
+
+#define MAX_BLOCKS 5// largest number in map[]
+#define MAX_BLOCK_SIZE 4// most instances of the same digit > 0 in map[]
+
+#define WIDTH 5// width of map[]
+#define HEIGHT WIDTH// height of map[]
+
+// -- end of main parameters --
+
+#define THREAD_COUNT 0// 0 to detect hardware_concurrency (default: 8)
+
+int threadCount;
+
 #include <iostream>
 #include <vector>
 #include <array>
@@ -9,65 +34,50 @@
 
 #include <mutex>
 
-std::mutex mu;
-
-#define THREAD_COUNT 12
-
-#define MAX_BLOCKS 5
-#define MAX_BLOCK_SIZE 4
-#define WIDTH 5
-#define HEIGHT WIDTH
+#include <windows.h>
 
 #define BOARD_SIZE WIDTH * HEIGHT * 2
 #define DATA_SIZE BOARD_SIZE + 3
 
-#define PLAYER_X 2
-#define PLAYER_Y 2
-
-int map[] = {
-  1, 1, 5, 5, 0,
-  1, 0, 0, 0, 0,
-  1, 0, 0, 4, 4,
-  2, 0, 0, 0, 4,
-  2, 2, 3, 3, 0,
-};
-
 int factorial(int a){
   int ans = 1;
-  for(int i = a; i>1; i--){
+  for(int i = a; i > 1; i--){
     ans = ans * i;
   }
   return ans;
 }
 
+// generates all the puzzles that will be checked
+// Moidify this to search for different/more/fewer puzzle permutations
 std::vector<int *> getSearchSpace(){
 
   int mapSize = WIDTH * HEIGHT;
 
   int mx = 0;//max block number
   for(int i = 0; i < mapSize; i++){
-    if(map[i] > mx) { mx = map[i]; }
+    if(map[i] > mx)
+      mx = map[i];
   }
 
   std::vector<int> mxa;
   int *blockAts = new int[mx];
   const int bl = mx * MAX_BLOCK_SIZE;
   int *blockPos = new int[bl];
-  for(int i = 0; i < mx; i++) {
+  for(int i = 0; i < mx; i++){
     mxa.push_back(i);
     blockAts[i] = 0;
   }
 
   //get block positions
-  for(int i = 0; i < mapSize; i++) {
-    if(map[i] > 0) {
+  for(int i = 0; i < mapSize; i++){
+    if(map[i] > 0){
       blockPos[MAX_BLOCK_SIZE * (map[i] - 1) + blockAts[map[i] - 1]++] = i;
     }
   }
 
   // print board
-  for(int i = 0; i < HEIGHT; i++) {
-    for(int j = 0; j < WIDTH; j++) {
+  for(int i = 0; i < HEIGHT; i++){
+    for(int j = 0; j < WIDTH; j++){
       if(map[WIDTH * i + j] > 0){
         std::cout << map[WIDTH * i + j] << " ";
       }
@@ -97,7 +107,7 @@ std::vector<int *> getSearchSpace(){
 
   for(int i = 0; i < perms; i++){
     int *at = new int[mx];
-    for(int j = 0; j < mx; j++) {
+    for(int j = 0; j < mx; j++){
       at[j] = 0;
     }
     bool done = false;
@@ -106,7 +116,7 @@ std::vector<int *> getSearchSpace(){
       int *t = new int[BOARD_SIZE];
       int atT = 0;
       int v;
-      for(int j = 0; j < mapSize; j++) {
+      for(int j = 0; j < mapSize; j++){
         v = map[j] > 0 ? perm[i * mx + map[j] - 1] + 1 : 0;
         t[atT++] = v;
         t[atT++] = v == mx ? -2 : -1;
@@ -143,8 +153,8 @@ std::vector<int *> getSearchSpace(){
 
 void printBoard(int *b){
   std::cout << "[" << std::endl;
-  for(int i = 0; i < HEIGHT; i++) {
-    for(int j = 0; j < WIDTH; j++) {
+  for(int i = 0; i < HEIGHT; i++){
+    for(int j = 0; j < WIDTH; j++){
       if(j > 0){
         std::cout << ",";
       }
@@ -163,10 +173,8 @@ void printBoard(int *b){
   std::cout << "]";
 }
 
-#include <windows.h>
-//const int COLS[] = {2, 8, 8, 4, 6, 3, 5, 1, 7};
+// pretty, colorful, console output
 const int COLS[] = {10, 8, 8, 12, 14, 11, 13, 9, 15};
-//const int COLS2[] = {10, 0, 0, 12, 14, 11, 13, 9, 15};
 const int COLS2[] = {2, 0, 0, 4, 6, 3, 5, 1, 7};
 HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 
@@ -176,8 +184,8 @@ void color(int id, int id2){
 }
 
 void prettyPrintBoard(int *b){
-  for(int j = 0; j < WIDTH; j++) {
-    for(int i = 0; i < HEIGHT; i++) {
+  for(int j = 0; j < WIDTH; j++){
+    for(int i = 0; i < HEIGHT; i++){
       color(b[(i + j * WIDTH) * 2], b[(i + j * WIDTH) * 2]);
       std::cout << "[";
       color(b[(i + j * WIDTH) * 2 + 1], b[(i + j * WIDTH) * 2 + 1]);
@@ -203,6 +211,7 @@ void prettyPrintBoard(int *b){
   }
 }
 
+// win condition
 bool winning(int *board){
   return board[(board[BOARD_SIZE] + board[BOARD_SIZE + 1] * WIDTH) * 2 + 1] == -2;
 }
@@ -353,7 +362,7 @@ __global__ void makeMoves(int *queue, int *newQueue, int max){
       }
     }
 
-    if(X + fc0 < 0 || Y + fc1 < 0 || X + fc0 >= WIDTH || Y + fc1 >= HEIGHT){
+    if(X + x < 0 || Y + y < 0 || X + x >= WIDTH || Y + y >= HEIGHT){
       finish(newQueue, board, X, Y, grabbing, facing, dir, to);
       return;
     }
@@ -386,40 +395,15 @@ __global__ void makeMoves(int *queue, int *newQueue, int max){
   return;
 }
 
-//unordered_set stuff
-struct ArrayHasher {
-  std::size_t operator()(const int * a) const {
-    std::size_t h = 0;
-
-    for(int i = 0; i < DATA_SIZE; i++){
-      h ^= std::hash<int>{}(a[i])  + 0x9e3779b9 + (h << 6) + (h >> 2);
-    }
-    return h;
-  }
-};
-
-struct ArrayEq {
-  bool operator () ( const int * a, const int * b ) const {
-    for(int i = 0; i < DATA_SIZE; i++){
-      if(a[i] != b[i]){return false;}
-    }
-    return true;
-  }
-};
-
 //trie stuff
 #define ALPHABET_SIZE MAX_BLOCKS + 3
 
 struct TrieNode {
   struct TrieNode *children[ALPHABET_SIZE];
-
-  bool isEndOfWord;
 };
 
-struct TrieNode *getNode(void) {
+struct TrieNode *getNode(void){
   struct TrieNode *pNode =  new TrieNode;
-
-  pNode->isEndOfWord = false;
 
   for (int i = 0; i < ALPHABET_SIZE; i++)
     pNode->children[i] = NULL;
@@ -427,10 +411,10 @@ struct TrieNode *getNode(void) {
   return pNode;
 }
 
-bool trieSearch(struct TrieNode *pCrawl, int *key) {
+bool trieSearch(struct TrieNode *pCrawl, int *key){
   bool ret = true;
 
-  for (int i = 0; i < DATA_SIZE; i++) {
+  for (int i = 0; i < DATA_SIZE; i++){
     int index = key[i] + 2;
     if (!pCrawl->children[index]){
       pCrawl->children[index] = getNode();
@@ -443,18 +427,31 @@ bool trieSearch(struct TrieNode *pCrawl, int *key) {
   return ret;
 }
 
-void trieDelete(struct TrieNode *root) {
-  for (int i = 0; i < ALPHABET_SIZE; i++) {
-    if(root->children[i])
+// free all trie memory to avoid a memory leak
+void trieDelete(struct TrieNode *root){
+  for (int i = 0; i < ALPHABET_SIZE; i++){
+    if(root->children[i]){
       trieDelete(root->children[i]);
-    delete root->children[i];
+      delete root->children[i];
+    }
   }
 }
 
-void runPuzzles(int id, std::vector<int *> searchSpace, int SZ, int &best, int &bestIndex){
-  for(int puz = id; puz < SZ; puz+=THREAD_COUNT){
+// run puzzles (multithreaded)
+std::mutex mu;
+
+void runPuzzles(int id, int threadCount, std::vector<int *> searchSpace, int SZ, int &best, int &bestIndex){
+  // check every nth puzzle, where n = # of threads
+  for(int puz = id; puz < SZ; puz += threadCount){
+    // log puzzle starting
+    mu.lock();
+    std::cout << "thread " << (id + 1) << ": puzzle " <<  (puz/threadCount) << "/" << (SZ/threadCount) << " " << puz * 100 / SZ << "%" << std::endl;
+    mu.unlock();
+
+    // initialize trie of all board states already searched
     struct TrieNode *allBoards = getNode();
 
+    // preparing input board
     int *newBoard = new int[DATA_SIZE];
     newBoard[BOARD_SIZE + 0] = PLAYER_X;
     newBoard[BOARD_SIZE + 1] = PLAYER_Y;
@@ -463,46 +460,50 @@ void runPuzzles(int id, std::vector<int *> searchSpace, int SZ, int &best, int &
       newBoard[i] = searchSpace[puz][i];
     }
 
-
-    mu.lock();
-    std::cout << "puzzle " <<  puz << "/" << SZ << "    " << puz * 100 / SZ << "% thread " << id << std::endl;
-    mu.unlock();
-
+    // add initial board to the list of previously searched boards
     trieSearch(allBoards, newBoard);
 
+    // prepare queue of board states to be tree-searched
     std::vector<int *> queue = {newBoard};
 
+    // perform tree-search
     bool done = false;
     int moves = 0;
     while(!done && (int)queue.size() > 0){
+      const int QueueSize = (int)queue.size();
       moves++;
-      std::vector<int> h_queue((int)queue.size() * (DATA_SIZE));
 
-      for(int i = 0; i < (int)queue.size(); i++){
+      // prepare host queue, and initialize size for faster insertion
+      std::vector<int> h_queue(QueueSize * (DATA_SIZE));
+
+      for(int i = 0; i < QueueSize; i++){
         for(int j = 0; j < DATA_SIZE; j++){
           h_queue[i * (DATA_SIZE) + j] = queue[i][j];
         }
       }
 
+      // clear queue
+      for (int i = QueueSize - 1; i >= 0; i--){
+        delete[] queue[i];
+      }
+      queue.clear();
+
+      // prepare queue and new queue on GPU
       int *d_queue;
       int *d_newQueue;
 
       cudaMalloc(&d_queue, (int)h_queue.size() * sizeof(int));
       cudaMalloc(&d_newQueue, (int)h_queue.size() * sizeof(int) * 8);
 
+      // copy queue to GPU
       cudaMemcpy( d_queue, h_queue.data(), (int)h_queue.size() * sizeof(int), cudaMemcpyHostToDevice);
 
-      int blocks = (int)queue.size() / 64 + 1;
-      //std::cout << "blocks: " << blocks << std::endl;
+      // determine number of GPU blocks and threads
+      int blocks = QueueSize / 64 + 1;
+      //std::cout << "blocks: " << blocks << std::endl;// debug log
 
-      int h_max = (int)queue.size() * 8;
-
-      for (int i = (int)queue.size() - 1; i >= 0; i--){
-        delete[] queue[i];
-      }
-      queue.clear();
-
-      //std::cout << "move " << moves << " threads: " << h_max;
+      int h_max = QueueSize * 8;
+      //std::cout << "move " << moves << " threads: " << h_max << std::endl;// debug log
 
       makeMoves<<< blocks, 512 >>>(d_queue, d_newQueue, h_max);
       cudaDeviceSynchronize();
@@ -515,30 +516,31 @@ void runPuzzles(int id, std::vector<int *> searchSpace, int SZ, int &best, int &
         exit(-1);
       }
 
-      //std::cout << "*";
-
+      // copy new queue to host
       int *h_newQueue = new int[(int)h_queue.size() * 8];
-
       cudaMemcpy( h_newQueue, d_newQueue, (int)h_queue.size() * 8 * sizeof(int), cudaMemcpyDeviceToHost);
 
+      // free GPU memory
       cudaFree(d_queue);
       cudaFree(d_newQueue);
 
-      //std::cout << "*";
-
+      // check GPU generated states, add new ones to the queue
       int SS = (int)h_queue.size() * 8;
       int *temp;
       for(int i = 0; i < SS; i+= DATA_SIZE){
         temp = &h_newQueue[i];
 
+        // debug log
         //std::cout << moves << " - " << ((i) / ((DATA_SIZE) * (8))) << " - " <<  ((((i) / (DATA_SIZE)) % 8) + 1)  << std::endl;
         //prettyPrintBoard(temp);
         //std::cout << std::endl;
 
+        // if the state hasn't been searched yet:
         if(!trieSearch(allBoards, temp)){
+          // win state condition
           if(winning(temp)){
             mu.lock();
-            std::cout << "Solved " << puz << " in " << moves << " moves; best = " << best << " thread " << id << std::endl;
+            std::cout << "thread " << (id + 1) << ": Solved " << (puz/threadCount) << " in " << moves << " moves; best = " << best << std::endl;
             if(moves >= best){
               best = moves;
               bestIndex = puz;
@@ -551,6 +553,7 @@ void runPuzzles(int id, std::vector<int *> searchSpace, int SZ, int &best, int &
             i = SS;
           }
 
+          // add to queue
           int *temp2 = new int[DATA_SIZE];
           for(int i = 0; i < DATA_SIZE; i++){
             temp2[i] = temp[i];
@@ -560,12 +563,11 @@ void runPuzzles(int id, std::vector<int *> searchSpace, int SZ, int &best, int &
         }
       }
 
+      // free memory
       delete[] h_newQueue;
-
-      //std::cout << "*" << std::endl;
-
     }
 
+    // free memory
     queue.clear();
     queue.shrink_to_fit();
     trieDelete(allBoards);
@@ -573,10 +575,22 @@ void runPuzzles(int id, std::vector<int *> searchSpace, int SZ, int &best, int &
   }
 }
 
+// main function
 int main(){
-  SetConsoleTextAttribute(hConsole, 15);
-  std::vector<int *> searchSpace = getSearchSpace();
-  const int SZ = (int)searchSpace.size();
+  threadCount = THREAD_COUNT;
+  if(threadCount == 0){
+    threadCount = std::thread::hardware_concurrency();
+    if(threadCount == 0){
+      threadCount = 8;
+    }
+  }
+
+  std::cout << "Running " << threadCount << " threads" << std::endl;
+  SetConsoleTextAttribute(hConsole, 15);// set console colors to white on black
+  std::vector<int *> searchSpace = getSearchSpace();// all the puzzles to be tested
+  const int SZ = (int)searchSpace.size();// length of searchSpace
+
+  // keeps track of the ideal puzzle and its score
   int best = 0;
   int bestIndex = 0;
 
@@ -584,16 +598,15 @@ int main(){
   std::vector<std::thread> threads;
 
   int id = 0;
-
-  for(int i = 0; i < THREAD_COUNT; i++){
-      threads.emplace_back([&](){runPuzzles(id++, searchSpace, SZ, best, bestIndex);});
-
+  for(int i = 0; i < threadCount; i++){
+      threads.emplace_back([&](){runPuzzles(id++, threadCount, searchSpace, SZ, best, bestIndex);});
   }
 
   for( auto & t : threads ){
     t.join();
   }
 
+  // print final result
   std::cout << "best took " << best << " moves" << std::endl;
   printBoard(searchSpace[bestIndex]);
 
