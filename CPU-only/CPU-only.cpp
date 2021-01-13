@@ -450,13 +450,13 @@ void runPuzzles(int id, int threadCount, std::vector<int *> searchSpace, int SZ,
   // check every nth puzzle, where n = # of threads
   for(int puz = id; puz < SZ; puz += threadCount){
     // log puzzle starting
-    mu.lock();
     //
     //std::cout << (SZ - puz) << " ";
     if(n == 1){
+      mu.lock();
       std::cout << "thread " << (id + 1) << ": puzzle " <<  (puz/threadCount) << "/" << (SZ/threadCount) << " " << puz * 100 / SZ << "%" << " best: " << best << std::endl;
+      mu.unlock();
     }
-    mu.unlock();
 
     // initialize trie of all board states already searched
     struct TrieNode *allBoards = getNode();
@@ -563,7 +563,8 @@ void runPuzzles(int id, int threadCount, std::vector<int *> searchSpace, int SZ,
     queue.clear();
     queue.shrink_to_fit();
     trieDelete(allBoards);
-    delete allBoards;
+    delete[] allBoards;
+    delete[] newBoard;
   }
 }
 

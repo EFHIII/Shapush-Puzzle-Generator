@@ -6,6 +6,3 @@ To generate Shapush puzzles, you can open the `Shapush Puzzle Generator.sln` fil
 Because of the use of CUDA, the code will probably only work on systems with an NVIDIA GPU that has a compute capability > 2.0. There's also use of CPU multithreading, so computers with more CPU cores will likely see better results.
 
 Puzzles generated with this can be directly used with https://github.com/EFHIII/shapush
-
-# TODO
-- make non-CUDA fallback
