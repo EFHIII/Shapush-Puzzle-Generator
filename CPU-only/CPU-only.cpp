@@ -3,13 +3,23 @@
 
 // 0 = nothing, # = parts of a block and it's initial position
 
+//int map[] = {
+//  1, 1, 5, 5, 0,
+//  1, 0, 0, 0, 0,
+//  2, 0, 0, 4, 4,
+//  2, 0, 0, 0, 4,
+//  2, 3, 3, 3, 0,
+//};
+
 int map[] = {
-  1, 1, 5, 5, 0,
-  1, 0, 0, 0, 0,
-  2, 0, 0, 4, 4,
-  2, 0, 0, 0, 4,
-  2, 3, 3, 3, 0,
+  0, 0, 4, 0, 0,
+  0, 4, 4, 4, 0,
+  5, 0, 0, 0, 2,
+  1, 3, 3, 3, 2,
+  1, 0, 0, 0, 2,
 };
+
+int startAt = 0;
 
 int topFew = 40;
 int n = 1;
@@ -21,7 +31,7 @@ int n = 1;
 // #. . . .#.
 
 #define MAX_BLOCKS 5// largest number in map[]
-#define MAX_BLOCK_SIZE 3// most instances of the same digit > 0 in map[]
+#define MAX_BLOCK_SIZE 4// most instances of the same digit > 0 in map[]
 
 #define WIDTH 5// width of map[]
 #define HEIGHT WIDTH// height of map[]
@@ -448,13 +458,18 @@ int cooldown = 0;
 int lastb = 0;
 void runPuzzles(int id, int threadCount, std::vector<int *> searchSpace, int SZ, int &best, int &bestIndex){
   // check every nth puzzle, where n = # of threads
-  for(int puz = id; puz < SZ; puz += threadCount){
+  for(int puz = id + startAt; puz < SZ; puz += threadCount){
     // log puzzle starting
     //
     //std::cout << (SZ - puz) << " ";
     if(n == 1){
       mu.lock();
       std::cout << "thread " << (id + 1) << ": puzzle " <<  (puz/threadCount) << "/" << (SZ/threadCount) << " " << puz * 100 / SZ << "%" << " best: " << best << std::endl;
+      mu.unlock();
+    }
+    if(puz%50 == 0){
+      mu.lock();
+      std::cout << "// " << puz;
       mu.unlock();
     }
 
@@ -481,7 +496,7 @@ void runPuzzles(int id, int threadCount, std::vector<int *> searchSpace, int SZ,
     int moves = 0;
     while(!done && (int)queue.size() > 0){
       moves++;
-      int *newQueue = new int[(int)queue.size() * 8 * (DATA_SIZE)];
+      int *newQueue = new int[queue.size() * 8 * (DATA_SIZE)];
 
       int S = (int)queue.size();
       int SS = S * 8 * (DATA_SIZE);
@@ -494,6 +509,9 @@ void runPuzzles(int id, int threadCount, std::vector<int *> searchSpace, int SZ,
 
       //makeMoves<<< blocks, 512 >>>(queue, newQueue, h_max);
 
+      for (int i = S - 1; i >= 0; i--){
+        delete[] queue[i];
+      }
       queue.clear();
 
       // check generated states, add new ones to the queue
@@ -532,7 +550,7 @@ void runPuzzles(int id, int threadCount, std::vector<int *> searchSpace, int SZ,
               std::cout << std::endl;
               //std::cout << "thread " << (id + 1) << ": Solved " << (puz/threadCount) << " in " << moves << " moves; best = " << best << std::endl;
               //prettyPrintBoard(temp);
-              std::cout << "    {" << std::endl << "      title: \"" << title << n++ << "\"," << std::endl <<
+              std::cout << "    {" << std::endl << "      title: \"" << title << n++ << "\",// puzzle " << puz-id << std::endl <<
                 "      size: { width: " << WIDTH << ", height: "<< HEIGHT << " }," << std::endl <<
                 "      start: { x: " << PLAYER_X << ", y: " << PLAYER_Y << " }," << std::endl <<
                 "      board:";
@@ -564,7 +582,6 @@ void runPuzzles(int id, int threadCount, std::vector<int *> searchSpace, int SZ,
     queue.shrink_to_fit();
     trieDelete(allBoards);
     delete[] allBoards;
-    delete[] newBoard;
   }
 }
 
